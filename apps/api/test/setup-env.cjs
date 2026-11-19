@@ -9,7 +9,9 @@ const state = JSON.parse(
 );
 Object.assign(process.env, {
   NODE_ENV: 'test',
-  ...(state.available ? { DATABASE_URL: state.connectionString } : {}),
+  DATABASE_URL: state.available
+    ? state.connectionString
+    : process.env.DATABASE_URL || 'postgresql://test:test@127.0.0.1:5432/tracop_test',
   TRACOP_TESTCONTAINER_AVAILABLE: String(state.available === true),
   JWT_SECRET: 'test-jwt-secret-not-for-real-use-000000000000',
   JWT_ISSUER: 'tracop',
