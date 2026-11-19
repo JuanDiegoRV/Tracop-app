@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../../../shared/infra/database.js';
-import type { OrderAggregate, OrderRepository, PricingPort } from '../../ports/ordering-ports.js';
+import type {
+  OrderAggregate,
+  OrderRepository,
+  OrderTraceEvent,
+  PricingPort,
+} from '../../ports/ordering-ports.js';
 import type { OrderEvent, OrderLineProps, OrderProps } from '../../domain/order.js';
 import type { PricingConfiguration, QuoteAmounts } from '../../domain/pricing.js';
 import type { QuoteProps } from '../../domain/quote.js';
@@ -126,20 +131,32 @@ export class DrizzleOrderRepository implements OrderRepository {
     }
     if (events.length) {
       let previousHash: string | null = null;
+      let sequence = 1;
       await db.insert(orderEvents).values(
         events.map((event) => {
-          const hash = hashOrderEvent(previousHash, event.payload);
+          const actorId = (event.payload.actorId as string | undefined) ?? aggregate.order.buyerId;
+          const occurredAt = new Date(event.occurredAt);
+          const hash = hashOrderEvent(previousHash, {
+            orderId: event.orderId,
+            sequence,
+            type: event.type,
+            actorId,
+            occurredAt,
+            payload: event.payload,
+          });
           const payload = { ...event.payload, prevHash: previousHash, hash };
           const row = {
             id: createId(),
             orderId: event.orderId,
+            sequence,
             type: event.type,
             payload: JSON.stringify(payload),
-            actorId: aggregate.order.buyerId,
-            occurredAt: new Date(event.occurredAt),
+            actorId,
+            occurredAt,
             prevHash: previousHash,
             hash,
           };
+          sequence += 1;
           previousHash = hash;
           return row;
         }),
@@ -162,26 +179,38 @@ export class DrizzleOrderRepository implements OrderRepository {
       .where(eq(orders.id, aggregate.order.id));
     if (events.length) {
       const [lastEvent] = await db
-        .select({ hash: orderEvents.hash })
+        .select({ hash: orderEvents.hash, sequence: orderEvents.sequence })
         .from(orderEvents)
         .where(eq(orderEvents.orderId, aggregate.order.id))
-        .orderBy(desc(orderEvents.occurredAt), desc(orderEvents.id))
+        .orderBy(desc(orderEvents.sequence))
         .limit(1);
       let previousHash = lastEvent?.hash ?? null;
+      let sequence = (lastEvent?.sequence ?? 0) + 1;
       await db.insert(orderEvents).values(
         events.map((event) => {
-          const hash = hashOrderEvent(previousHash, event.payload);
+          const actorId = (event.payload.actorId as string | undefined) ?? aggregate.order.buyerId;
+          const occurredAt = new Date(event.occurredAt);
+          const hash = hashOrderEvent(previousHash, {
+            orderId: event.orderId,
+            sequence,
+            type: event.type,
+            actorId,
+            occurredAt,
+            payload: event.payload,
+          });
           const payload = { ...event.payload, prevHash: previousHash, hash };
           const row = {
             id: createId(),
             orderId: event.orderId,
+            sequence,
             type: event.type,
             payload: JSON.stringify(payload),
-            actorId: (event.payload.actorId as string | undefined) ?? aggregate.order.buyerId,
-            occurredAt: new Date(event.occurredAt),
+            actorId,
+            occurredAt,
             prevHash: previousHash,
             hash,
           };
+          sequence += 1;
           previousHash = hash;
           return row;
         }),
@@ -270,6 +299,26 @@ export class DrizzleOrderRepository implements OrderRepository {
       .orderBy(asc(quotes.validUntil))
       .limit(limit);
     return rows.map((r) => r.orderId);
+  }
+
+  async findTrace(orderId: string): Promise<readonly OrderTraceEvent[]> {
+    const db = this.database.current();
+    const rows = await db
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, orderId))
+      .orderBy(asc(orderEvents.sequence));
+    return rows.map((row) => ({
+      id: row.id,
+      orderId: row.orderId,
+      sequence: row.sequence,
+      type: row.type,
+      actorId: row.actorId,
+      occurredAt: row.occurredAt,
+      payload: JSON.parse(row.payload) as Record<string, unknown>,
+      prevHash: row.prevHash,
+      hash: row.hash,
+    }));
   }
 }
 

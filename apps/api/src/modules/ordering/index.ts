@@ -20,7 +20,13 @@ export {
   type QuoteAmounts,
   MAX_COP,
 } from './domain/pricing.js';
-export { hashOrderEvent, verifyOrderEventChain, canonicalJson } from './domain/order-events.js';
+export {
+  hashOrderEvent,
+  verifyOrderEventChain,
+  canonicalJson,
+  orderEventHashContent,
+  type OrderEventHashInput,
+} from './domain/order-events.js';
 export type {
   LotQuotePort,
   LotQuoteSnapshot,
@@ -33,6 +39,8 @@ export type {
   OrderingRateLimit,
   ProviderDirectoryPort,
   ProviderPublicSummary,
+  OrderTraceEvent,
+  OrderingTracePort,
 } from './ports/ordering-ports.js';
 export {
   ORDER_REPOSITORY,
@@ -43,4 +51,5 @@ export {
   ORDERING_CLOCK,
   ORDERING_RATE_LIMIT,
   ORDER_PROVIDER_DIRECTORY,
+  ORDER_TRACE_PORT,
 } from './ports/ordering-ports.js';

@@ -551,15 +551,38 @@ describePostgres('Catalog Ordering API integration', () => {
       .send({ expectedVersion: orderResult.rows[0].version })
       .expect(200);
 
+    const traceResponse = await request(app.getHttpServer())
+      .get(`/trust/orders/${orderId}/trace`)
+      .set('Authorization', `Bearer ${buyer.token}`)
+      .expect(200);
+    expect(traceResponse.body.integrity).toMatchObject({ valid: true, eventCount: 3 });
+    expect(traceResponse.body.events).toHaveLength(3);
+
     const rows = await pool.query(
-      `SELECT prev_hash, hash, payload
+      `SELECT id, order_id, sequence, type, actor_id, occurred_at, prev_hash, hash, payload
        FROM ordering.order_events
        WHERE order_id = $1::uuid
-       ORDER BY occurred_at, id`,
+       ORDER BY sequence`,
       [orderId],
     );
     const chain = rows.rows.map(
-      (row: { prev_hash: string | null; hash: string; payload: string }) => ({
+      (row: {
+        id: string;
+        order_id: string;
+        sequence: number;
+        type: string;
+        actor_id: string;
+        occurred_at: Date;
+        prev_hash: string | null;
+        hash: string;
+        payload: string;
+      }) => ({
+        id: row.id,
+        orderId: row.order_id,
+        sequence: row.sequence,
+        type: row.type,
+        actorId: row.actor_id,
+        occurredAt: row.occurred_at,
         prevHash: row.prev_hash,
         hash: row.hash,
         payload: JSON.parse(row.payload),
@@ -570,30 +593,48 @@ describePostgres('Catalog Ordering API integration', () => {
 
     await pool.query(
       `UPDATE ordering.order_events
-       SET payload = jsonb_build_object('status', 'cancelled')::text
+       SET type = 'OrderCancelled'
        WHERE id = (
          SELECT id FROM ordering.order_events
          WHERE order_id = $1::uuid
-         ORDER BY occurred_at, id
+         ORDER BY sequence
          LIMIT 1
        )`,
       [orderId],
     );
 
     const mutated = await pool.query(
-      `SELECT prev_hash, hash, payload
+      `SELECT id, order_id, sequence, type, actor_id, occurred_at, prev_hash, hash, payload
        FROM ordering.order_events
        WHERE order_id = $1::uuid
-       ORDER BY occurred_at, id`,
+       ORDER BY sequence`,
       [orderId],
     );
     expect(
       verifyOrderEventChain(
-        mutated.rows.map((row: { prev_hash: string | null; hash: string; payload: string }) => ({
-          prevHash: row.prev_hash,
-          hash: row.hash,
-          payload: JSON.parse(row.payload),
-        })),
+        mutated.rows.map(
+          (row: {
+            id: string;
+            order_id: string;
+            sequence: number;
+            type: string;
+            actor_id: string;
+            occurred_at: Date;
+            prev_hash: string | null;
+            hash: string;
+            payload: string;
+          }) => ({
+            id: row.id,
+            orderId: row.order_id,
+            sequence: row.sequence,
+            type: row.type,
+            actorId: row.actor_id,
+            occurredAt: row.occurred_at,
+            prevHash: row.prev_hash,
+            hash: row.hash,
+            payload: JSON.parse(row.payload),
+          }),
+        ),
       ),
     ).toBe(false);
   });

@@ -5,12 +5,10 @@ import { DomainError } from '../../../shared/kernel/domain-error.js';
 import {
   Order,
   assertNoDuplicateLotLines,
-  type OrderEvent,
   type OrderProps,
   type OrderLineProps,
 } from '../domain/order.js';
 import { Quote, type QuoteProps } from '../domain/quote.js';
-import { hashOrderEvent } from '../domain/order-events.js';
 import type {
   LotQuotePort,
   LotReservationPort,
@@ -20,6 +18,7 @@ import type {
   OrderingUnitOfWork,
   PricingPort,
   OrderingClock,
+  OrderTraceEvent,
 } from '../ports/ordering-ports.js';
 import {
   LOT_QUOTE_PORT,
@@ -65,22 +64,6 @@ export interface ExpireReservationInput {
   readonly orderId: string;
   readonly now: Date;
 }
-
-const enrichEventsWithHash = (events: readonly OrderEvent[]): readonly OrderEvent[] => {
-  let previousHash: string | null = null;
-  return events.map((event) => {
-    const payload = { ...event.payload };
-    const hash = hashOrderEvent(previousHash, payload);
-    const enriched = {
-      ...event,
-      prevHash: previousHash,
-      hash,
-      payload: { ...payload, prevHash: previousHash, hash },
-    };
-    previousHash = hash;
-    return enriched;
-  });
-};
 
 @Injectable()
 export class OrderingService {
@@ -250,7 +233,6 @@ export class OrderingService {
       const orderEntity = Order.reconstitute(aggregate.order);
       orderEntity.transition('accepted', now, { actorId: input.actor.sub });
       const orderEvents = orderEntity.drainEvents();
-      const enrichedEvents = enrichEventsWithHash(orderEvents);
 
       const updatedAggregate: OrderAggregate = {
         order: orderEntity.props,
@@ -268,7 +250,7 @@ export class OrderingService {
         })),
         reservationExpiresAt,
       );
-      await this.orderRepository.save(updatedAggregate, enrichedEvents);
+      await this.orderRepository.save(updatedAggregate, orderEvents);
       await this.recordOrderEvents(orderEvents);
 
       return updatedAggregate;
@@ -299,14 +281,13 @@ export class OrderingService {
         actorId: input.actor.sub,
       });
       const orderEvents = orderEntity.drainEvents();
-      const enrichedEvents = enrichEventsWithHash(orderEvents);
 
       const updatedAggregate: OrderAggregate = {
         order: orderEntity.props,
         lines: aggregate.lines,
         quote: { ...aggregate.quote, status: 'cancelled' },
       };
-      await this.orderRepository.save(updatedAggregate, enrichedEvents);
+      await this.orderRepository.save(updatedAggregate, orderEvents);
       await this.lotReservationPort.release(input.orderId);
       await this.recordOrderEvents(orderEvents);
 
@@ -324,14 +305,13 @@ export class OrderingService {
       const orderEntity = Order.reconstitute(aggregate.order);
       orderEntity.transition('cancelled', input.now, { reason: 'expired' });
       const orderEvents = orderEntity.drainEvents();
-      const enrichedEvents = enrichEventsWithHash(orderEvents);
 
       const updatedAggregate: OrderAggregate = {
         order: orderEntity.props,
         lines: aggregate.lines,
         quote: { ...aggregate.quote, status: 'expired' },
       };
-      await this.orderRepository.save(updatedAggregate, enrichedEvents);
+      await this.orderRepository.save(updatedAggregate, orderEvents);
       await this.lotReservationPort.release(input.orderId);
       await this.recordOrderEvents(orderEvents);
 
@@ -399,6 +379,15 @@ export class OrderingService {
     return aggregate;
   }
 
+  async getTrace(actor: Actor, orderId: string): Promise<readonly OrderTraceEvent[] | null> {
+    const aggregate = await this.orderRepository.findById(orderId);
+    if (!aggregate) return null;
+    const isParticipant =
+      actor.sub === aggregate.order.buyerId || actor.sub === aggregate.order.providerId;
+    if (!isParticipant) throw new DomainError('Pedido no encontrado.', 'not_found');
+    return this.orderRepository.findTrace(orderId);
+  }
+
   private hashRequest(buyerId: string, input: CreateOrderInput): string {
     const normalized = {
       buyerId,
@@ -424,10 +413,7 @@ export class OrderingService {
       events.map((event) => ({
         aggregate: `order:${event.orderId}`,
         type: event.type,
-        payload: {
-          ...event.payload,
-          hash: event.payload.hash ?? hashOrderEvent(null, event.payload),
-        },
+        payload: event.payload,
       })),
     );
   }

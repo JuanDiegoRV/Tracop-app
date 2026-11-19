@@ -1,8 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 
 const sourceRoot = resolve('src');
 const syncWriterPath = 'modules/sync/adapters/out/drizzle-sync-repository.ts';
+const relativeSourcePath = (file: string): string =>
+  relative(sourceRoot, file).split(sep).join('/');
 const listTypeScriptFiles = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
@@ -12,11 +14,11 @@ const listTypeScriptFiles = (directory: string): string[] =>
 describe('sync change-log write boundary', () => {
   it('keeps every production INSERT and the sole sequence lock in the sync repository', () => {
     const files = listTypeScriptFiles(sourceRoot);
-    const syncWriter = files.find((file) => relative(sourceRoot, file) === syncWriterPath);
+    const syncWriter = files.find((file) => relativeSourcePath(file) === syncWriterPath);
     expect(syncWriter).toBeDefined();
     const writerSource = readFileSync(syncWriter!, 'utf8');
     const productionSources = files.map((file) => ({
-      path: relative(sourceRoot, file),
+      path: relativeSourcePath(file),
       source: readFileSync(file, 'utf8'),
     }));
 

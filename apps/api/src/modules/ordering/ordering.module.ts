@@ -11,6 +11,7 @@ import {
   ORDERING_UNIT_OF_WORK,
   ORDERING_CLOCK,
   ORDERING_RATE_LIMIT,
+  ORDER_TRACE_PORT,
 } from './ports/ordering-ports.js';
 import { APP_ENVIRONMENT } from '../../shared/infra/tokens.js';
 
@@ -25,6 +26,7 @@ import { APP_ENVIRONMENT } from '../../shared/infra/tokens.js';
     { provide: ORDERING_UNIT_OF_WORK, useExisting: UNIT_OF_WORK },
     { provide: ORDERING_CLOCK, useExisting: APP_CLOCK },
     { provide: ORDERING_RATE_LIMIT, useClass: InMemoryOrderingRateLimit },
+    { provide: ORDER_TRACE_PORT, useExisting: OrderingService },
     {
       provide: 'ORDER_COMMISSION_RATE_BPS',
       useFactory: (env: { ORDER_COMMISSION_RATE_BPS: bigint }) => env.ORDER_COMMISSION_RATE_BPS,
@@ -52,6 +54,6 @@ import { APP_ENVIRONMENT } from '../../shared/infra/tokens.js';
       inject: [APP_ENVIRONMENT],
     },
   ],
-  exports: [OrderingService, ORDER_REPOSITORY, PRICING_PORT],
+  exports: [OrderingService, ORDER_REPOSITORY, PRICING_PORT, ORDER_TRACE_PORT],
 })
 export class OrderingModule {}

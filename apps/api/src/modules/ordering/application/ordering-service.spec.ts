@@ -18,6 +18,7 @@ const createHarness = () => {
     listMine: async () => ({ items: [] }),
     listIncoming: async () => ({ items: [] }),
     findExpiredQuoteIds: async () => [],
+    findTrace: async () => [],
   };
   const lotQuote = {
     getQuote: async (lotId: string) => ({

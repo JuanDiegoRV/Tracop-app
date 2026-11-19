@@ -5821,6 +5821,39 @@
         "summary": "Consultar pedido (comprador o proveedor del pedido)",
         "tags": ["ordering"]
       }
+    },
+    "/trust/orders/{id}/trace": {
+      "get": {
+        "operationId": "TrustController_getOrderTrace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cadena de eventos y resultado de integridad."
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "404": {
+            "description": "Pedido no encontrado"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verificar la trazabilidad de un pedido",
+        "tags": ["trust"]
+      }
     }
   },
   "info": {

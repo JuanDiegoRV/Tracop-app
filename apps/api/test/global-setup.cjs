@@ -41,6 +41,7 @@ module.exports = async () => {
       '0008_sync_constraints.sql',
       '0009_catalog_lot_reservations.sql',
       '0010_ordering_schema.sql',
+      '0011_order_event_sequence.sql',
     ]) {
       if (filename === '0006_lot_photos.sql') {
         const timestamp = new Date();

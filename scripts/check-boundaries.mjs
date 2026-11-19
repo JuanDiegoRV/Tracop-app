@@ -5,9 +5,10 @@ import { spawnSync } from 'node:child_process';
 const repoRoot = resolve('apps/api/src');
 
 async function runEslint(fixturePath) {
+  const configPath = resolve('packages/config/eslint.config.js');
   const result = spawnSync(
-    'pnpm',
-    ['exec', 'eslint', '--config', resolve('packages/config/eslint.config.js'), fixturePath],
+    process.execPath,
+    [resolve('node_modules/eslint/bin/eslint.js'), '--config', configPath, fixturePath],
     { encoding: 'utf8', cwd: resolve(repoRoot, '../../..') },
   );
   return { status: result.status ?? 1, output: `${result.stdout}${result.stderr}` };

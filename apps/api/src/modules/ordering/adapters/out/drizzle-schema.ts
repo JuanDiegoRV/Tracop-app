@@ -1,4 +1,13 @@
-import { index, integer, numeric, text, timestamp, uuid, pgSchema } from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  numeric,
+  text,
+  timestamp,
+  uuid,
+  pgSchema,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 const ordering = pgSchema('ordering');
 
@@ -69,6 +78,7 @@ export const orderEvents = ordering.table(
   {
     id: uuid('id').primaryKey(),
     orderId: uuid('order_id').notNull(),
+    sequence: integer('sequence').notNull(),
     type: text('type').notNull(),
     payload: text('payload').notNull(),
     actorId: uuid('actor_id').notNull(),
@@ -76,5 +86,8 @@ export const orderEvents = ordering.table(
     prevHash: text('prev_hash'),
     hash: text('hash').notNull(),
   },
-  (table) => [index('order_events_order_idx').on(table.orderId, table.occurredAt)],
+  (table) => [
+    index('order_events_order_idx').on(table.orderId, table.occurredAt),
+    uniqueIndex('order_events_order_sequence_unique').on(table.orderId, table.sequence),
+  ],
 );

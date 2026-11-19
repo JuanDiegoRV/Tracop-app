@@ -97,3 +97,16 @@ All photo-management routes require authentication and the `producer` or `suppli
 | `PATCH /lots/{id}/photos/order`            | Set the complete order of ready photos            | Body: `{ "photoIds": ["<photo UUID>", ...] }`; returns `{ "status": "ordered" }`.                                                                                                                                                                 |
 
 Upload policies are size-limited and expire; supported input formats are JPEG, PNG, and WebP, and processed output is always WebP. Photo counts, byte/pixel/dimension limits, expiries, processing lease, and upload rate limits are configurable; see [README](../README.md#lot-photos). Presigned URLs and object keys are sensitive temporary access material. The upload key is necessarily returned as `fields.key`, and the random processed-object key is embedded in the presigned download URL; clients must not log or persist these URLs beyond their intended use. Responses do not expose independent media-reference/object-key properties. Exact lot coordinates and `providerId` are not exposed to third-party viewers; those fields are included only for the lot's provider, as described above. Do not infer privacy behavior for unrelated endpoints.
+
+## VerificaciÃ³n de trazabilidad
+
+Las partes de un pedido pueden consultar su cadena de eventos con:
+
+`GET /trust/orders/:id/trace`
+
+El endpoint devuelve los eventos append-only, sus hashes y `integrity.valid`. La
+respuesta nunca consulta directamente el schema de `ordering` desde `trust`:
+`ordering` expone un puerto pÃºblico y `trust` verifica la cadena con el mismo
+algoritmo SHA-256 que se usa al persistir los eventos. Un pedido que no existe o
+del que la persona autenticada no es comprador/proveedor responde como no
+encontrado.

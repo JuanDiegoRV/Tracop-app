@@ -36,6 +36,25 @@ export interface OrderAggregate {
   readonly quote: QuoteProps;
 }
 
+export interface OrderTraceEvent {
+  readonly id: string;
+  readonly orderId: string;
+  readonly sequence: number;
+  readonly type: string;
+  readonly actorId: string;
+  readonly occurredAt: Date;
+  readonly payload: Record<string, unknown>;
+  readonly prevHash: string | null;
+  readonly hash: string;
+}
+
+export interface OrderingTracePort {
+  getTrace(
+    actor: { readonly sub: string; readonly role: string },
+    orderId: string,
+  ): Promise<readonly OrderTraceEvent[] | null>;
+}
+
 export interface OrderRepository {
   findById(id: string, lock?: boolean): Promise<OrderAggregate | null>;
   create(aggregate: OrderAggregate, events: readonly OrderEvent[]): Promise<boolean>;
@@ -51,6 +70,7 @@ export interface OrderRepository {
     limit: number,
   ): Promise<{ items: readonly OrderAggregate[]; nextCursor?: string }>;
   findExpiredQuoteIds(now: Date, limit: number): Promise<readonly string[]>;
+  findTrace(orderId: string): Promise<readonly OrderTraceEvent[]>;
 }
 
 export interface OrderingUnitOfWork {
@@ -83,3 +103,4 @@ export const LOT_QUOTE_PORT = Symbol('LOT_QUOTE_PORT');
 export const LOT_RESERVATION_PORT = Symbol('LOT_RESERVATION_PORT');
 export const ORDERING_RATE_LIMIT = Symbol('ORDERING_RATE_LIMIT');
 export const ORDER_PROVIDER_DIRECTORY = Symbol('ORDER_PROVIDER_DIRECTORY');
+export const ORDER_TRACE_PORT = Symbol('ORDER_TRACE_PORT');
